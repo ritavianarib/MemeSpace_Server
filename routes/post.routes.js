@@ -25,33 +25,6 @@ router.post(
 );
 
 
-
-router.post(
-  "/create-post",
-  isAuthenticated,
-  [
-    check("title", "Title of the post is required").not().isEmpty(),
-    check("body", "Body souldnot be empty").not().isEmpty(),
-    check("url", "Photo souldnot be empty").not().isEmpty(),
-  ],
-  (req, res) => {
-    req.user.password = undefined;
-    const { title, body, photo } = req.body;
-    const post = new PostModel({
-      title,
-      body,
-      photo,
-      postedBy: req.user,
-    });
-    post
-      .save()
-      .then((result) => {
-        res.json({ post: result });
-      })
-      .catch((err) => console.log(err));
-  }
-);
-
 router.post("/createpost", isAuthenticated, attachCurrentUser, async (req, res) => {
   try {
     const loggedInUser = req.currentUser;
@@ -61,15 +34,17 @@ router.post("/createpost", isAuthenticated, attachCurrentUser, async (req, res) 
     },
     );
 
-    return res.status(201).json(createGoal);
+    return res.status(201).json(createPost);
   } catch (err) {
     console.log(err);
 
     if (err.code === 11000) {
       return res.status(400).json(err.message ? err.message : err);
+      
     }
+    console.log("+", err)
+    res.status(500).json({msg: err.message});
 
-    res.status(500).json(err);
   }
 });
 
@@ -151,6 +126,28 @@ router.put("/comment", isAuthenticated, attachCurrentUser, async (req, res) => {
     return res.status(500).json({ msg: e.message })
   }
 
+  //Create Comment
+  router.post(
+    "/:userId/create-comment",
+    isAuthenticated,
+    attachCurrentUser,
+    async (req, res) => {
+      try {
+        const loggedInUser = req.currentUser;
+  
+        const createComment = await PostModel.create({
+          ...req.body,
+          userId: loggedInUser._id,
+          comment: req.params.stayId,
+        });
+        console.log("console", req.currentUser);
+        return res.status(201).json(createComment);
+      } catch (error) {
+        console.log(error);
+        return res.status(500).json(error);
+      }
+    }
+  );
 
 
 });
@@ -191,24 +188,19 @@ router.get("/singlepost/:postId", isAuthenticated, (req, res) => {
 
 
 
-router.delete("/delete/:postId", isAuthenticated, (req, res) => {
-  PostModel.findOne({ _id: req.params.postId })
-    .populate("postedBy", "_id")
-    .exec((err, post) => {
-      if (err || !post) {
-        return res.status(422).json({ error: err });
-      }
-      if (post.postedBy._id.toString() === req.user._id.toString()) {
-        post
-          .remove()
-          .then((result) => {
-            res.json(result);
-          })
-          .catch((err) => console.log(err));
-      }
-    });
-});
+router.delete("/delete/:postId", isAuthenticated, attachCurrentUser, async (req, res) => {
+  try {
+    const removePost = await PostModel.deleteOne ({ _id: req.params.postId });
 
+    return res.status(200).json(removePost);
+  } catch (err) {
+    console.log(err);
+    res.status(500).json(err);
+  }
+}
+);
+  
+  
 
 
 // post of only those to whom im followed
