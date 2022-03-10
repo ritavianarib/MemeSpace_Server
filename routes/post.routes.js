@@ -1,15 +1,33 @@
 const express = require('express');
-const router = require('express').Router;
+const router = express.Router();
 
 
-const isAuth = require("../middlewares/isAuth");
 const PostModel = require("../models/Post.model")
+const UserModel = require("../models/User.model")
 
-const { check } = require("express-validator"); 
+const { check } = require("express-validator");
 const isAuthenticated = require('../middlewares/isAuthenticated');
+const attachCurrentUser = require('../middlewares/attachCurrentUser');
+const uploader = require("../config/cloudinary.config");
+
+// Upload
+router.post(
+  "/upload",
+  uploader.single("picture"),
+  (req, res) => {
+    console.log(req.file)
+    if (!req.file) {
+      return res.status(500).json({ msg: "O Upload de arquivo falhou." });
+    }
+
+    return res.status(201).json({ url: req.file.path });
+  }
+);
+
+
 
 router.post(
-  "/createpost",
+  "/create-post",
   isAuthenticated,
   [
     check("title", "Title of the post is required").not().isEmpty(),
@@ -34,28 +52,44 @@ router.post(
   }
 );
 
-// all post of non following user
-router.get("/allposts", isAuthenticated, (req, res) => {
-  PostModel.find({
-    postedBy: {
-       
-        $nin:req.user.following
-      
+router.post("/createpost", isAuthenticated, attachCurrentUser, async (req, res) => {
+  try {
+    const loggedInUser = req.currentUser;
+    const createPost = await PostModel.create({
+      ...req.body,
+      postedBy: loggedInUser._id,
     },
-  })
-    .populate("postedBy", "_id name email pic")
-    .populate("comments.postedBy", "_id name ")
-    .sort("-createdAt")
+    );
+
+    return res.status(201).json(createGoal);
+  } catch (err) {
+    console.log(err);
+
+    if (err.code === 11000) {
+      return res.status(400).json(err.message ? err.message : err);
+    }
+
+    res.status(500).json(err);
+  }
+});
+
+router.get("/mypost", isAuthenticated, attachCurrentUser, async (req, res) => {
+
+  const loggedUser = req.currentUser;
+  console.log(loggedUser)
+
+  await PostModel.find({ postedBy: loggedUser._id })
+    .populate("postedBy")
     .then((posts) => {
       res.json({ posts });
     })
     .catch((err) => console.log(err));
 });
 
-router.get("/myposts", isAuthenticated, (req, res) => {
-  PostModel.find({ postedBy: req.user._id })
-    .populate("postedBy", "_id name email pic")
-    .sort("-createdAt")
+router.get("/allpost", isAuthenticated, (req, res) => {
+  PostModel.find()
+    .populate("postedBy")
+    .populate("comments.postedBy")
     .then((myposts) => {
       res.json({ myposts });
     })
@@ -96,26 +130,29 @@ router.put("/unlikepost", isAuthenticated, (req, res) => {
     });
 });
 
-router.put("/comment", isAuthenticated, (req, res) => {
+router.put("/comment", isAuthenticated, attachCurrentUser, async (req, res) => {
   console.log(req.body)
-  const comment = {
-    text: req.body.text,
-    postedBy: req.user._id,
-  };
-  PostModel.findByIdAndUpdate(
-    req.body.postId,
-    { $push: { comments: comment } },
-    { new: true }
-  )
-    .populate("comments.postedBy", "_id name")
-    .populate("postedBy", "_id name pic")
-    .exec((err, result) => {
-      if (err) {
-        return res.status(422).json({ error: err });
-      } else {
-        res.json(result);
-      }
-    });
+
+  try {
+    const loggedUser = req.currentUser;
+    const postId = req.body.postId
+    const comment = {
+      text: req.body.text,
+      postedBy: loggedUser._id,
+    };
+    const commentPosted = await PostModel.findByIdAndUpdate(
+      postId,
+      { $push: { comments: comment } },
+      { new: true }
+    )
+    return res.status(200).json(commentPosted)
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ msg: e.message })
+  }
+
+
+
 });
 
 router.put("/uncomment", isAuthenticated, (req, res) => {
@@ -145,9 +182,9 @@ router.get("/singlepost/:postId", isAuthenticated, (req, res) => {
   PostModel.findById(req.params.postId)
     .populate("postedBy", "_id name email pic")
     .populate("comments.postedBy", "_id name ")
-    
+
     .then(onepost => {
-      res.json( onepost );
+      res.json(onepost);
     })
     .catch((err) => console.log(err));
 });
@@ -177,7 +214,7 @@ router.delete("/delete/:postId", isAuthenticated, (req, res) => {
 // post of only those to whom im followed
 
 router.get("/followedusersposts", isAuthenticated, (req, res) => {
-  PostModel.find({postedBy:{$in:req.user.following}})
+  PostModel.find({ postedBy: { $in: req.user.following } })
     .populate("postedBy", "_id name email pic")
     .populate("comments.postedBy", "_id name")
     .sort("-createdAt")
@@ -189,7 +226,7 @@ router.get("/followedusersposts", isAuthenticated, (req, res) => {
 
 // post of those whom im not following
 router.get("/notfollowingusersposts", isAuthenticated, (req, res) => {
-  PostModel.find({postedBy:{$nin:req.user.following}})
+  PostModel.find({ postedBy: { $nin: req.user.following } })
     .populate("postedBy", "_id name email pic")
     .populate("comments.postedBy", "_id name")
     .sort("-createdAt")

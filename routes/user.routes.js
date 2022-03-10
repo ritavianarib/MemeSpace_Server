@@ -8,6 +8,8 @@ const attachCurrentUser = require("../middlewares/attachCurrentUser");
 
 const salt_rounds = 10;
 
+
+
 // Crud (CREATE) - HTTP POST
 // Criar um novo usuário
 router.post("/signup", async (req, res) => {
