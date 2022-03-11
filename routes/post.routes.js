@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 
-
 const PostModel = require("../models/Post.model")
 const UserModel = require("../models/User.model")
 
@@ -63,10 +62,14 @@ router.get("/mypost", isAuthenticated, attachCurrentUser, async (req, res) => {
 
 router.get("/allpost", isAuthenticated, (req, res) => {
   PostModel.find()
-    .populate("postedBy")
-    .populate("comments.postedBy")
-    .then((myposts) => {
-      res.json({ myposts });
+    .populate("comments")
+    .populate({
+      path: "postedBy",
+      model: "User",
+      select: { _id: 1, name: 1 },
+    })
+    .then((result) => {
+      return res.status(200).json({ result });
     })
     .catch((err) => console.log(err));
 });

@@ -4,11 +4,11 @@ const Schema = mongoose.Schema
 
 const CommentSchema = new Schema({
  
-  comments: { type: String },
+    comments: { type: String },
 
     postedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
 
-    publication: {type: mongoose.Schema.Types.ObjectId, ref: "Post"}
+    postId: {type: mongoose.Schema.Types.ObjectId, ref: "Post"}
 },
 
 );

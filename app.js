@@ -17,6 +17,9 @@ app.use("/api/user", userRouter);
 const postRouter = require("./routes/post.routes");
 app.use("/api/post", postRouter);
 
+const commentRouter = require("./routes/comment.routes");
+app.use("/api/comment", commentRouter);
+
 app.listen(Number(process.env.PORT), () =>
   console.log(`Server up and running at port ${process.env.PORT}`)
 );
